@@ -1,9 +1,8 @@
-import type { ApiSection, Draft, EditMode, Kind, ListSort, Notice, Patch, PromptMode, PromptVariant, Seen, SessionHistory, Tab, Target } from '../types'
+import type { Draft, EditMode, Kind, ListSort, Notice, Patch, PromptMode, PromptVariant, Seen, SessionHistory, Tab, Target } from '../types'
 import type { DesktopAppend } from './desktop'
 import { readDesktopAppend } from './desktop'
 import type { Io } from './io'
 import { changingTexts, textKey } from './history'
-import { ApiTraffic } from './recordings'
 import { ADDED_PREFIX, fillOriginal, inheritedRule, nextAddedId, ruleMap, withRule } from './rules'
 import { promptModeOf, readSettings, SETTINGS_UNREADABLE, withPromptMode, writeSettings } from './settings'
 import type { TweakerStore } from './store'
@@ -36,8 +35,6 @@ export class TweakerController {
   readonly texts = new Map<string, string | null>()
   /** The items whose text was not always the same (see `textKey`), across the recent sessions and this one. */
   changing = new Set<string>()
-  /** The API Traffic tab's data. */
-  readonly api = new ApiTraffic()
   /** The recent sessions' histories, read when the panel opens; this session's own is read live. */
   private pastHistories: SessionHistory[] = []
 
@@ -58,9 +55,6 @@ export class TweakerController {
       await this.loadHistories(io)
     } else if (next === 'prompt') {
       await this.refreshPromptMode(io)
-    } else if (next === 'api') {
-      await this.api.open(io, null)
-      await this.api.load(io)
     }
   }
 
@@ -214,22 +208,6 @@ export class TweakerController {
     if (isListSort(value)) {
       await io.set.listSort(value)
     }
-  }
-
-  async openExchange(io: Io, n: number | null): Promise<void> {
-    await this.api.open(io, n)
-  }
-
-  async toggleApiSection(io: Io, section: ApiSection): Promise<void> {
-    await this.api.toggleSection(io, section)
-  }
-
-  async refreshApi(io: Io): Promise<void> {
-    await this.api.load(io)
-  }
-
-  async setRecording(io: Io, isOn: boolean): Promise<void> {
-    await this.tell(io, await this.api.setRecording(io, isOn))
   }
 
   async refreshPromptMode(io: Io): Promise<void> {

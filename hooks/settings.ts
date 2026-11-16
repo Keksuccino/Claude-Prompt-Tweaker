@@ -1,4 +1,4 @@
-import type { PromptMode, PromptModeState, RecorderInfo } from '../types'
+import type { PromptMode, PromptModeState } from '../types'
 import type { Io } from './io'
 
 /**
@@ -34,49 +34,6 @@ export function withPromptMode(settings: Record<string, unknown>, mode: PromptMo
       delete env[PROMPT_MODE_VARIABLE]
     } else {
       env[PROMPT_MODE_VARIABLE] = mode === 'short' ? '1' : '0'
-    }
-  })
-}
-
-/**
- * What a session started now does about the recorder: goes through it (`on`), or goes to the API directly (`off`). `other`
- * is a proxy or certificate file of the user's own, which the recorder cannot be put in front of or beside.
- */
-export type RecordingState = 'on' | 'off' | 'other'
-
-/** Hosts a session reaches without the proxy: its own machine, so local servers never go through the recorder. */
-export const RECORDER_NO_PROXY = 'localhost,127.0.0.1,::1'
-
-export function recordingStateOf(settings: unknown, recorder: RecorderInfo | null): RecordingState {
-  const env = isObject(settings) && isObject(settings.env) ? settings.env : {}
-  const proxy = env.HTTPS_PROXY
-  const certificates = env.NODE_EXTRA_CA_CERTS
-  if (certificates !== undefined && certificates !== recorder?.ca) {
-    return 'other'
-  }
-  if (typeof proxy !== 'string' || proxy === '') {
-    return 'off'
-  }
-
-  return recorder !== null && proxy === recorder.proxy ? 'on' : 'other'
-}
-
-/**
- * Returns the settings with sessions sent through the recorder, or no longer: its proxy, the certificate a session trusts
- * it by, and the local hosts it leaves out. A value the user set themselves stays either way: turning it on keeps their
- * list of local hosts, and turning it off removes only what is still the recorder's. (Their own proxy or certificate file
- * is `other` in `recordingStateOf`, and recording is not turned on over it.)
- */
-export function withRecording(settings: Record<string, unknown>, recorder: RecorderInfo, isOn: boolean): Record<string, unknown> {
-  const values: Record<string, string> = { HTTPS_PROXY: recorder.proxy, NODE_EXTRA_CA_CERTS: recorder.ca, NO_PROXY: RECORDER_NO_PROXY }
-
-  return withEnv(settings, env => {
-    for (const [name, value] of Object.entries(values)) {
-      if (isOn && env[name] === undefined) {
-        env[name] = value
-      } else if (!isOn && env[name] === value) {
-        delete env[name]
-      }
     }
   })
 }

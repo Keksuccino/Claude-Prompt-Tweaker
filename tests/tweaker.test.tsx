@@ -66,13 +66,10 @@ class FakeFiles {
 
 }
 
-/** Answers everything beneath the mod: the files, the session, the clock, and the engine's own prompt and attachments. */
-/**
- * Every pane open the mod asked for, every cached answer it had Claude Code drop, and every command it ran, answered by
- * `answer` as recorder.sh would: one JSON line.
- */
-type Panes = { opened: PaneOpenArgs[]; invalidated: string[]; ran: string[][]; answer: (argv: readonly string[]) => object }
+/** Every pane open the mod asked for, and every cached answer it had Claude Code drop. */
+type Panes = { opened: PaneOpenArgs[]; invalidated: string[] }
 
+/** Answers everything beneath the mod: the files, the session, the clock, and the engine's own prompt and attachments. */
 function fakeHost(on: On, stored: Readonly<Record<string, unknown>> = {}): { files: FakeFiles; clock: MockClock; engine: { memory: string; extra: PromptComposeSection[] }; store: Map<string, unknown>; panes: Panes } {
   // The short prompt's memory section, which the engine words for each project, and the sections it adds only sometimes:
   // a test changes them between composes.
@@ -107,12 +104,7 @@ function fakeHost(on: On, stored: Readonly<Record<string, unknown>> = {}): { fil
   on('session.id', () => ({ value: 'session-1' }))
   on('session.cwd', () => ({ value: '/work/project' }))
   on('command.register', () => ({ value: { command: 'tweaker' } }))
-  const panes: Panes = { opened: [], invalidated: [], ran: [], answer: () => ({ ok: true, listening: true }) }
-  on('process.run', ($, e) => {
-    panes.ran.push([...e.argv])
-
-    return { value: { exitCode: 0, stdout: `${JSON.stringify(panes.answer(e.argv))}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
-  })
+  const panes: Panes = { opened: [], invalidated: [] }
   on('ui.invalidate', ($, e) => {
     panes.invalidated.push(e.event)
 
@@ -153,28 +145,6 @@ async function inject($: Engine, type: string, text: string): Promise<void> {
 
 function readHistory(files: FakeFiles): { version: number; items: { kind: string; name: string; hash: string; action: string; count: number }[] } {
   return JSON.parse(files.read(`${ROOT}/history/session-1.json`))
-}
-
-/** Where the recorder keeps its recordings in these tests, and what recorder.sh leaves behind about it. */
-const RECORDINGS = '/recordings'
-const RECORDER = { dir: RECORDINGS, port: 18777, proxy: 'http://127.0.0.1:18777', ca: `${HOME}/.mitmproxy/mitmproxy-ca-cert.pem` }
-const RECORDING_ENV = { HTTPS_PROXY: RECORDER.proxy, NODE_EXTRA_CA_CERTS: RECORDER.ca, NO_PROXY: 'localhost,127.0.0.1,::1' }
-
-const MESSAGES = { hello: { role: 'user', content: 'Hello' }, hi: { role: 'assistant', content: 'Hi.' }, thanks: { role: 'user', content: 'Thanks' } }
-
-/** Two exchanges of this session as record.py writes them: the second sends one message more of each side. */
-function writeRecordings(files: FakeFiles): void {
-  files.write(`${ROOT}/recorder.json`, JSON.stringify(RECORDER))
-  const blobs: Record<string, unknown> = { aa01: [{ type: 'text', text: 'You are Claude Code.' }], aa02: [{ name: 'Bash' }], bb01: MESSAGES.hello, bb02: MESSAGES.hi, bb03: MESSAGES.thanks }
-  for (const [hash, value] of Object.entries(blobs)) {
-    files.write(`${RECORDINGS}/blobs/${hash.slice(0, 2)}/${hash}.json`, JSON.stringify(value))
-  }
-  files.write(`${RECORDINGS}/blobs/cc/cc01.json`, 'event: message_stop\ndata: {"type":"message_stop"}\n')
-  const summary = (n: number, at: number, messages: number) => ({ n, at, durationMs: 2300, method: 'POST', path: '/v1/messages?beta=true', status: 200, error: null, requestBytes: 900, responseBytes: 300, model: 'claude-opus-5-5', messages, isStream: true, usage: { input: 10, output: 5, cacheRead: 100, cacheWrite: 0 }, stopReason: 'end_turn', errorType: null })
-  const exchange = (n: number, at: number, messages: string[]) => ({ ...summary(n, at, messages.length), request: { headers: [['x-api-key', '[removed]']], body: { order: ['model', 'system', 'tools', 'messages'], fields: { model: 'claude-opus-5-5' }, system: 'aa01', tools: 'aa02', messages } }, response: { headers: [], body: 'cc01' } })
-  files.write(`${RECORDINGS}/sessions/session-1/1.json`, JSON.stringify(exchange(1, 1000, ['bb01'])))
-  files.write(`${RECORDINGS}/sessions/session-1/2.json`, JSON.stringify(exchange(2, 2000, ['bb01', 'bb02', 'bb03'])))
-  files.write(`${RECORDINGS}/sessions/session-1/index.jsonl`, `${[summary(1, 1000, 1), summary(2, 2000, 3)].map(one => JSON.stringify(one)).join('\n')}\n`)
 }
 
 function writeRules(files: FakeFiles, rules: object): void {
@@ -578,72 +548,18 @@ describe('panel', () => {
     await ui.unmount()
   })
 
-  test('the API Traffic tab lists this session\'s exchanges newest first and opens one part by part', async ($, on) => {
-    const { files, clock } = fakeHost(on)
-    writeRecordings(files)
-    files.write(SETTINGS, JSON.stringify({ env: RECORDING_ENV }))
+  test('a tab value stored under no shape tag opens the System Prompt tab', async ($, on) => {
+    const { clock } = fakeHost(on)
+    // The session keeps $.state through a reload of the mod, so a tab name no TABS entry has can come back untagged.
+    on('state.get', ($, e, next) => (e.plugin === 'prompt-tweaker' && e.key === 'tab' ? { value: { value: 'api', version: 1 } } : next(e)))
     await start($, clock)
+    await $.prompt.compose(COMPOSE)
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'prompt-tweaker', surface, component: 'Pane', requestId: 'prompt-tweaker', props: PANE_PROPS })
-      const keys = async (prefix: string): Promise<(string | undefined)[]> => (await ui.findAll({ type: 'Button' })).map(found => found.key).filter(key => key?.startsWith(prefix))
-      const sources = async (): Promise<unknown[]> => (await ui.findAll({ type: 'Code' })).map(code => code.props.source)
-      await ui.press({ key: 'tab-api' })
-      expect(await keys('exchange-')).toEqual(['exchange-2', 'exchange-1'])
-
-      await ui.press({ key: 'exchange-2' })
-      // Open at first: the request's own fields, the messages the first request did not send, and the response.
-      expect(await sources()).toEqual([JSON.stringify({ model: 'claude-opus-5-5' }, null, 2), JSON.stringify([MESSAGES.hi, MESSAGES.thanks], null, 2), 'event: message_stop\ndata: {"type":"message_stop"}\n'])
-      await ui.press({ key: 'section-system' })
-      expect(await sources()).toContain(JSON.stringify([{ type: 'text', text: 'You are Claude Code.' }], null, 2))
-      await ui.press({ key: 'section-allMessages' })
-      expect(await sources()).toContain(JSON.stringify([MESSAGES.hello, MESSAGES.hi, MESSAGES.thanks], null, 2))
-      await ui.press({ key: 'section-response' })
-      expect(await sources()).not.toContain('event: message_stop\ndata: {"type":"message_stop"}\n')
-
-      await ui.press({ key: 'api-back' })
-      expect(await keys('exchange-')).toEqual(['exchange-2', 'exchange-1'])
+      expect((await ui.find({ key: 'tab-prompt' }))?.props.variant).toBe('primary')
+      expect(await ui.find({ key: 'section-lean_body' })).toBeDefined()
       await ui.unmount()
     }
-  })
-
-  test('the recording switch sends new sessions through the recorder and back, leaving the user\'s settings', async ($, on) => {
-    const { files, clock, panes } = fakeHost(on)
-    files.write(SETTINGS, JSON.stringify({ outputStyle: 'Concise' }))
-    panes.answer = argv => {
-      if (argv[2] === 'start') {
-        files.write(`${ROOT}/recorder.json`, JSON.stringify(RECORDER))
-      }
-
-      return { ok: true, listening: true }
-    }
-    await start($, clock)
-    const ui = await $.ui.mount({ plugin: 'prompt-tweaker', surface: 'desktop', component: 'Pane', requestId: 'prompt-tweaker', props: PANE_PROPS })
-    await ui.press({ key: 'tab-api' })
-
-    await ui.press({ key: 'recording' })
-    expect(JSON.parse(files.read(SETTINGS))).toEqual({ outputStyle: 'Concise', env: RECORDING_ENV })
-    await ui.press({ key: 'recording' })
-    expect(JSON.parse(files.read(SETTINGS))).toEqual({ outputStyle: 'Concise' })
-    expect(panes.ran.map(argv => argv[2]).filter(command => command !== 'status')).toEqual(['start', 'retire'])
-    expect(panes.ran.every(argv => argv[0] === '/bin/bash' && argv[1]?.endsWith('/recorder/recorder.sh'))).toBe(true)
-    await ui.unmount()
-  })
-
-  test('a recorder that stopped is offered to start again, and a proxy of the user\'s own is left alone', async ($, on) => {
-    const { files, clock, panes } = fakeHost(on)
-    writeRecordings(files)
-    files.write(SETTINGS, JSON.stringify({ env: RECORDING_ENV }))
-    panes.answer = () => ({ ok: true, listening: false })
-    await start($, clock)
-    const ui = await $.ui.mount({ plugin: 'prompt-tweaker', surface: 'desktop', component: 'Pane', requestId: 'prompt-tweaker', props: PANE_PROPS })
-    await ui.press({ key: 'tab-api' })
-    expect(await ui.find({ key: 'restart-recorder' })).toBeDefined()
-
-    files.write(SETTINGS, JSON.stringify({ env: { HTTPS_PROXY: 'http://corp:8080' } }))
-    await ui.press({ key: 'refresh-api' })
-    expect(await ui.find({ key: 'recording' })).toBeUndefined()
-    expect(await ui.find({ key: 'restart-recorder' })).toBeUndefined()
-    await ui.unmount()
   })
 
   test('the prompt mode buttons write and remove only their own setting', async ($, on) => {

@@ -1,5 +1,5 @@
 /** The tabs of the panel. */
-export type Tab = 'prompt' | 'context' | 'injected' | 'tools' | 'desktop' | 'history' | 'api'
+export type Tab = 'prompt' | 'context' | 'injected' | 'tools' | 'desktop' | 'history'
 
 /** What the engine sends that a rule can change: a system prompt section, a first-message context block, an injected message type, a tool description. */
 export type Kind = 'section' | 'context' | 'attachment' | 'tool'
@@ -103,58 +103,14 @@ export type PromptMode = 'default' | 'full' | 'short'
  */
 export type ListSort = 'natural' | 'name' | 'size'
 
-/** What recorder.sh leaves in ~/.claude/prompt-tweaker/recorder.json: where it keeps recordings and how sessions reach it. */
-export type RecorderInfo = { dir: string; port: number; proxy: string; ca: string }
-
-/** Token counts of one response, as the API reports them; `input` leaves out what the cache read or wrote. */
-export type Usage = { input: number | null; output: number | null; cacheRead: number | null; cacheWrite: number | null }
-
-/** One exchange with the API as a line of a session's index.jsonl sums it up. */
-export type ExchangeSummary = {
-  n: number
-  /** When the request started, in milliseconds. */
-  at: number
-  durationMs: number
-  method: string
-  path: string
-  /** The response's HTTP status; null when none came. */
-  status: number | null
-  /** Why the exchange broke off, when it did. */
-  error: string | null
-  requestBytes: number
-  responseBytes: number
-  model: string | null
-  /** How many messages the request carried. */
-  messages: number | null
-  isStream: boolean
-  usage: Usage | null
-  stopReason: string | null
-  /** The API's error type, for a response that is one. */
-  errorType: string | null
-}
-
-/**
- * A request body as record.py keeps it: its own fields inline, and the system prompt, the tool list and each message as
- * the SHA-256 of a blob, stored once however many requests send it. A body that is no JSON object is one blob, `text`.
- */
-export type StoredBody = { order?: string[]; fields?: Record<string, unknown>; system?: string; tools?: string; messages?: string[]; text?: string }
-
-/** One exchange as its file keeps it: the summary, the headers without secrets, and the bodies as blob references. */
-export type Exchange = ExchangeSummary & {
-  request: { headers: [string, string][]; body: StoredBody }
-  response: { headers: [string, string][]; body: string | null }
-}
-
-/** The parts of an exchange's detail view that open and close. */
-export type ApiSection = 'headers' | 'fields' | 'system' | 'tools' | 'newMessages' | 'allMessages' | 'response'
-
 /** The prompt mode as read from the settings file; `unknown` while that file cannot be read. */
 export type PromptModeState = PromptMode | 'unknown'
 
 declare module 'claude-code' {
   interface PluginState {
     'prompt-tweaker': {
-      tab: Tab
+      /** Kept under a shape tag (see its atom in register.tsx): a value stored under another tag reads as the System Prompt tab. */
+      tab: Shaped<Tab>
       selected: Target | null
       draft: Draft | null
       toolSearch: string
@@ -169,10 +125,6 @@ declare module 'claude-code' {
       promptView: PromptVariant | null
       /** The order of every list in the panel, one choice for all tabs; kept for later sessions in the mod's store. */
       listSort: ListSort
-      /** The exchange the API Traffic tab shows in full, by its number in the session; null lists them all. */
-      apiItem: number | null
-      /** The parts of that exchange shown open. */
-      apiExpanded: ApiSection[]
     }
   }
 }

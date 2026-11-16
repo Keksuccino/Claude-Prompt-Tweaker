@@ -1,6 +1,6 @@
 import type { FsEntry, Timer } from 'claude-code'
 
-import type { ApiSection, Draft, ListSort, Notice, PromptModeState, PromptVariant, Tab, Target } from '../types'
+import type { Draft, ListSort, Notice, PromptModeState, PromptVariant, Tab, Target } from '../types'
 
 /**
  * What the modules other than register.tsx may do outside themselves. Only register.tsx spells `$` (the engine checks that a
@@ -20,10 +20,6 @@ export type Io = {
   mtime: (path: string) => Promise<number | undefined>
   /** Has Claude Code ask for the session's tools again at the next turn, so a removed or restored tool takes effect. */
   invalidateTools: () => void
-  /** Runs a command by its argument vector, no shell, and resolves once it exits, whatever its exit code. */
-  run: (argv: readonly string[]) => Promise<{ exitCode: number; stdout: string; stderr: string }>
-  /** The folder the mod is installed in. */
-  pluginRoot: () => string
   set: StateSetters
   /** Reads the unsaved editor content as it stands now, for a handler that acts on it. */
   getDraft: () => Promise<Draft | null>
@@ -45,9 +41,6 @@ export type StateSetters = {
   historySearch: (value: string) => Promise<void>
   /** Also keeps the choice in the mod's store, so later sessions open with it. */
   listSort: (value: ListSort) => Promise<void>
-  apiItem: (value: number | null) => Promise<void>
-  apiExpanded: (value: ApiSection[]) => Promise<void>
-  updateApiExpanded: (change: (current: ApiSection[]) => ApiSection[]) => Promise<void>
   /** Redraws the panel after a change it cannot see in $.state: rules, catalog or history read from disk. */
   redraw: () => Promise<void>
 }
@@ -65,6 +58,4 @@ export type PaneState = {
   historyItem: number | null
   historySearch: string
   listSort: ListSort
-  apiItem: number | null
-  apiExpanded: ApiSection[]
 }

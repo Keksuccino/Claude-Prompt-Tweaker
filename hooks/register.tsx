@@ -19,7 +19,9 @@ const PANE = 'prompt-tweaker'
 const LIST_SORT_KEY = 'listSort'
 
 // The panel's $.state values. The engine reads which values a module uses off these declarations, so they live in this file.
-const tab = atom({ plugin: 'prompt-tweaker', key: 'tab' } as const, 'prompt')
+// A value outlives a reload of the mod. Change the tab's tag whenever the tabs change: a tab this code no longer draws would
+// leave the panel empty, and a value under another tag reads as the System Prompt tab.
+const tab = atom({ plugin: 'prompt-tweaker', key: 'tab' } as const, 'prompt', { shape: 'tabs-2' })
 const selected = atom({ plugin: 'prompt-tweaker', key: 'selected' } as const, null)
 const draft = atom({ plugin: 'prompt-tweaker', key: 'draft' } as const, null)
 const toolSearch = atom({ plugin: 'prompt-tweaker', key: 'toolSearch' } as const, '')
@@ -31,8 +33,6 @@ const notice = atom({ plugin: 'prompt-tweaker', key: 'notice' } as const, null)
 const promptMode = atom({ plugin: 'prompt-tweaker', key: 'promptMode' } as const, 'unknown')
 const promptView = atom({ plugin: 'prompt-tweaker', key: 'promptView' } as const, null)
 const listSort = atom({ plugin: 'prompt-tweaker', key: 'listSort' } as const, 'natural')
-const apiItem = atom({ plugin: 'prompt-tweaker', key: 'apiItem' } as const, null)
-const apiExpanded = atom({ plugin: 'prompt-tweaker', key: 'apiExpanded' } as const, [])
 
 export const register: Register = on => {
   const store = new TweakerStore(io => void io.set.redraw())
@@ -186,14 +186,6 @@ export const register: Register = on => {
     return { value: keptTools(listed.value, store.rules) }
   })
 
-  // The recorder writes an exchange once its response ended: the API Traffic tab reads its list again after each turn.
-  on('turn.complete', async ($, e, next) => {
-    const completed = await next(e)
-    control.api.refreshAfterTurn(bind($))
-
-    return completed
-  })
-
   on('session.end', async ($, e, next) => {
     await store.flush(bind($))
 
@@ -223,8 +215,6 @@ export const register: Register = on => {
       historyItem: await read($, historyItem),
       historySearch: await read($, historySearch),
       listSort: await read($, listSort),
-      apiItem: await read($, apiItem),
-      apiExpanded: await read($, apiExpanded),
     }
 
     return renderPane($.ui.resolve({ ...e, surface: e.surface }), state, io, control)
@@ -257,8 +247,6 @@ function bind($: EngineInterface): Io {
     exists: path => $.fs.exists(path),
     mtime: async path => (await $.fs.stat(path).catch(() => undefined))?.mtimeMs,
     invalidateTools: () => $.ui.invalidate('tool.list'),
-    run: argv => $.process.run(argv, { timeoutMs: 60_000 }),
-    pluginRoot: () => $.plugin.root,
     getDraft: () => read($, draft),
     set: {
       tab: async value => void (await update($, tab, () => value)),
@@ -276,9 +264,6 @@ function bind($: EngineInterface): Io {
         await update($, listSort, () => value)
         await $.store.set(LIST_SORT_KEY, value)
       },
-      apiItem: async value => void (await update($, apiItem, () => value)),
-      apiExpanded: async value => void (await update($, apiExpanded, () => value)),
-      updateApiExpanded: async change => void (await update($, apiExpanded, change)),
       redraw: async () => void (await update($, rev, count => count + 1)),
     },
   }

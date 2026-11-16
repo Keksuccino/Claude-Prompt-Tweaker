@@ -1,18 +1,20 @@
 import type { Elements, RenderElement } from 'claude-code'
 
 import type { Action, Draft, HistoryItem, Kind, ListSort, PromptMode, PromptVariant, Rule, Tab, Target } from '../types'
-import { renderApiTab } from './apiTab'
 import type { TweakerController } from './controller'
 import { draftKey } from './controller'
 import { INSTRUCTIONS, REREAD_INSTRUCTIONS } from './injected'
 import type { Io, PaneState } from './io'
 import { ADDED_PREFIX, applyPatches, countMatches, fillOriginal, inheritedRule, ORIGINAL_TOKEN, ruleMap } from './rules'
-import type { Detail, Ui } from './ui'
-import { formatClock, formatCount, formatTime, listRow } from './ui'
 
+/** The elements the panel draws with: the same on the terminal and the desktop app. */
+export type Ui = Pick<Elements['desktop'], 'Box' | 'Text' | 'Button' | 'Input' | 'Code' | 'Select'>
 
 /** The elements the button above the prompt draws with. */
 export type BandUi = Pick<Elements['desktop'], 'Box' | 'Button'>
+
+/** A detail drawn beside a row's button: dim for facts, a theme color for a status. */
+type Detail = { text: string; tone: 'dim' | 'info' | 'error' | 'warning' | 'success' }
 
 /** The panel's name: its title and the label of the button above the prompt. */
 export const PANEL_TITLE = 'Claude Tweaker'
@@ -26,7 +28,6 @@ const TABS: { id: Tab; label: string; hotkey: string }[] = [
   { id: 'tools', label: 'Tools', hotkey: '4' },
   { id: 'desktop', label: 'Desktop App', hotkey: '5' },
   { id: 'history', label: 'History', hotkey: '6' },
-  { id: 'api', label: 'API Traffic', hotkey: '7' },
 ]
 
 const KIND_LABEL: Record<Kind | 'added', string> = {
@@ -68,7 +69,7 @@ const RELATION_HINT: Record<string, string> = {
 export function renderPane(ui: Ui, state: PaneState, io: Io, control: TweakerController): RenderElement {
   const view: View = { io, ui, control, state }
   const { Box } = ui
-  const isDetail = state.selected !== null && state.tab !== 'history' && state.tab !== 'desktop' && state.tab !== 'api'
+  const isDetail = state.selected !== null && state.tab !== 'history' && state.tab !== 'desktop'
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -167,8 +168,6 @@ function tabBody(view: View): RenderElement {
       return desktopTab(view)
     case 'history':
       return historyTab(view)
-    case 'api':
-      return renderApiTab(view)
   }
 }
 
@@ -682,4 +681,43 @@ function shortKind(kind: Kind): string {
 
 function folderName(path: string): string {
   return path.split('/').filter(part => part !== '').pop() ?? path
+}
+
+/**
+ * One row of a list: the name is the button, and its details are drawn beside it, outside the button. The desktop app draws
+ * a button's contents as plain text, so a color or dimming inside the button would be lost there.
+ */
+function listRow(ui: Ui, row: { key: string; label: string; onPress: () => void; details: Detail[] }): RenderElement {
+  const { Box, Button, Text } = ui
+
+  return (
+    <Box key={`row-${row.key}`} flexDirection="row" columnGap={1} alignItems="center">
+      <Button key={row.key} label={row.label} plain onPress={row.onPress} />
+      {row.details.map(detail => (detail.tone === 'dim' ? <Text dimColor>{detail.text}</Text> : <Text color={detail.tone === 'info' ? 'suggestion' : detail.tone}>{detail.text}</Text>))}
+    </Box>
+  )
+}
+
+/** Thousands with a comma, the one form every surface shows the same. */
+function formatCount(value: number): string {
+  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+function formatTime(at: number): string {
+  if (at <= 0) {
+    return 'unknown'
+  }
+  const date = new Date(at)
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function formatClock(at: number): string {
+  const date = new Date(at)
+
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+function pad(value: number): string {
+  return String(value).padStart(2, '0')
 }
