@@ -10,7 +10,10 @@ A mod for Claude Code, in the terminal and in the Code tab of the Claude desktop
 - **Tools:** rewrite a tool's description, or take the tool away from the model.
 - **Desktop App:** read the instructions the desktop app adds. These can't be changed.
 - **History:** see what was sent in each session, and edit it from there.
-- **API Traffic:** record the exact requests Claude Code sends to Anthropic's API and what comes back. Needs macOS and [mitmproxy](https://mitmproxy.org) (`brew install mitmproxy`).
+
+![image_1](/assets/image_1.png)
+![image_2](/assets/image_2.png)
+![image_3](/assets/image_3.png)
 
 ## How to Use It
 
