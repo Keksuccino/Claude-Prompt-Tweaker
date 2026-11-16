@@ -1,0 +1,10 @@
+{
+  "name": "prompt-tweaker",
+  "version": "0.1.0",
+  "description": "See, edit and drop what Claude Code sends the model: system prompt sections, injected messages, first-message context and tool descriptions, with a history of everything injected",
+  "author": {
+    "name": "Keksuccino"
+  },
+  "license": "Unlicense",
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "prompt-tweaker",
+  "description": "Claude Tweaker: see and edit the instructions Claude Code sends the model",
+  "owner": {
+    "name": "Keksuccino"
+  },
+  "plugins": [
+    {
+      "name": "prompt-tweaker",
+      "source": "./"
+    }
+  ]
+}
