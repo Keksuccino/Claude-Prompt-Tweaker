@@ -11,9 +11,13 @@ A mod for Claude Code, in the terminal and in the Code tab of the Claude desktop
 - **Desktop App:** read the instructions the desktop app adds. These can't be changed.
 - **History:** see what was sent in each session, and edit it from there.
 
-![image_1](/assets/image_1.png)
-![image_2](/assets/image_2.png)
-![image_3](/assets/image_3.png)
+<table>
+  <tr>
+    <td width="33%" valign="top"><img src="assets/image_1.png" alt="The System Prompt tab, listing each section with its size and what your edits do to it" width="100%"></td>
+    <td width="33%" valign="top"><img src="assets/image_2.png" alt="A section opened, with Claude Code's own text" width="100%"></td>
+    <td width="33%" valign="top"><img src="assets/image_3.png" alt="Editing a section, as a full replacement or with find and replace" width="100%"></td>
+  </tr>
+</table>
 
 ## How to Use It
 
